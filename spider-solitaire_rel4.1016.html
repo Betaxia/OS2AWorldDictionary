@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>八花色蜘蛛纸牌</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #2c3e50, #1a1a2e);
+            color: #fff;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .game-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .game-header {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .game-header h1 {
+            margin: 0;
+            color: #f8f8f8;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        .game-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        button:hover:not(:disabled) {
+            background: #2980b9;
+        }
+        button:disabled {
+            background: #7f8c8d;
+            cursor: not-allowed;
+        }
+        .game-stats {
+            display: flex;
+            gap: 15px;
+        }
+        .foundations {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .foundation {
+            width: 80px;
+            height: 112px;
+            position: relative;
+        }
+        .foundation-placeholder {
+            width: 80px;
+            height: 112px;
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.5);
+        }
+        .game-board {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            overflow-x: auto;
+        }
+        .columns-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            min-height: 400px;
+        }
+        .column {
+            width: 80px;
+            min-height: 112px;
+            position: relative; /* 核心修复1：父容器相对定位，使卡片容器相对于列定位 */
+            border-radius: 8px;
+            transition: background 0.3s, border 0.3s;
+            padding: 5px 0;
+        }
+        /* 可放置目标列样式 */
+        .column.drag-over {
+            background: rgba(52, 152, 219, 0.4);
+            border: 2px solid #3498db;
+        }
+        /* 不可放置目标列样式 */
+        .column.drag-not-allowed {
+            background: rgba(231, 76, 60, 0.2);
+            border: 2px dashed #e74c3c;
+        }
+        .column-drop-target {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        
+            pointer-events: none;
+            z-index: 0;
+        }
+        .card-container {
+            position: absolute;
+            left: 0;
+            transition: top 0.3s;
+            width: 100%; /* 补充：确保卡片容器与列同宽，避免偏移 */
+        
+            z-index: 2;
+        }
+        /* 卡片容器hover效果 */
+        .card-container:hover .card-front.is-movable {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+        }
+       .card {
+           width: 80px;
+           height: 112px;
+           border-radius: 8px;
+           display: flex;
+           flex-direction: column;
+           justify-content: flex-start;
+           align-items: flex-start;   /* 左对齐信息 */
+           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+           user-select: none;
+           margin: 0 auto;
+           padding: 0;
+           position: relative;
+           cursor: grab;
+        
+           pointer-events: auto;
+        }
+        .card * {
+            pointer-events: none;  /* 新增：让卡片子元素不阻挡拖拽 */
+        }
+        .card-info {
+            width: 100%;
+            padding: 2px 4px;
+            font-size: 14px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between; /* 左边点数，右边花色 */
+            align-items: center;
+            box-sizing: border-box;
+        }
+        .card.short {
+            height: 40px;              /* 高度缩短，只显示上边部分 */
+            overflow: hidden;          /* 隐藏超出的部分 */
+            padding-top: 2px;          /* 保证 rank/suit 能看到 */
+            font-size: 14px;           /* 调整文字大小 */
+        }
+        .card-back {
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            border: 2px solid #1f618d;
+        }
+        .card-front {
+            background: white;
+            border: 1px solid #ddd;
+            color: #000;
+        }
+        .card-red {
+            color: #e74c3c;
+        }
+        .card-black {
+            color: #000;
+        }
+        .card-rank {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 5px; /* 增加与花色之间的距离 */
+        }
+        .card-suit {
+            font-size: 16px;
+        }
+        .completed-count {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        .win-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(46, 204, 113, 0.9);
+            color: white;
+            padding: 30px 50px;
+            border-radius: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            z-index: 100;
+        }
+        .suit-indicator {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .same-suit-run {
+            border-left: 3px solid gold;
+        }
+        
+        /* 提示卡片样式 */
+        .hint-card {
+            border: 3px solid blue !important;
+            box-shadow: 0 0 10px blue !important;
+            animation: hint-pulse 1s infinite;
+        }
+        
+        @keyframes hint-pulse {
+            0% { box-shadow: 0 0 5px blue; }
+            50% { box-shadow: 0 0 20px blue; }
+            100% { box-shadow: 0 0 5px blue; }
+        }
+        
+        /* 目标位置样式 */
+        .hint-target {
+            border: 3px solid yellow !important;
+            box-shadow: 0 0 10px yellow !important;
+            animation: target-pulse 1s infinite;
+        }
+        
+        @keyframes target-pulse {
+            0% { box-shadow: 0 0 5px yellow; }
+            50% { box-shadow: 0 0 20px yellow; }
+            100% { box-shadow: 0 0 5px yellow; }
+        }
+        
+        /* 发牌提示样式 */
+        .deal-hint {
+            background: #3498db !important;
+            box-shadow: 0 0 10px #3498db !important;
+            animation: deal-pulse 1s infinite;
+        }
+        
+        @keyframes deal-pulse {
+            0% { box-shadow: 0 0 5px #3498db; }
+            50% { box-shadow: 0 0 20px #3498db; }
+            100% { box-shadow: 0 0 5px #3498db; }
+        }
+        
+        /* 帮助对话框样式 */
+        .help-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .help-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .help-content {
+            background: linear-gradient(135deg, #2c3e50, #1a1a2e);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 25px;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+        .help-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .help-close:hover {
+            background: #c0392b;
+        }
+        .help-title {
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #3498db;
+            font-size: 24px;
+        }
+        .help-section {
+            margin-bottom: 20px;
+        }
+        .help-section h3 {
+            color: #3498db;
+            margin-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 5px;
+        }
+        .help-section p, .help-section ul {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        .help-section ul {
+            padding-left: 20px;
+        }
+        .help-section li {
+            margin-bottom: 8px;
+        }
+        
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .game-header {
+                flex-direction: column;
+                gap: 15px;
+            }
+            .columns-container {
+                gap: 8px;
+            }
+            .card, .column {
+                width: 70px;
+                height: 98px;
+            }
+            .foundation, .foundation-placeholder {
+                width: 70px;
+                height: 98px;
+            }
+            .card-rank {
+                font-size: 18px;
+            }
+            .card-suit {
+                font-size: 14px;
+            }
+            .card-container {
+                top: calc(var(--card-index) * 20px) !important; /* 移动端减小间距，避免溢出 */
+            }
+            .help-content {
+                padding: 20px 15px;
+            }
+            .help-title {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel">
+        const { useState } = React;
+        let currentDragData = null;
+        // 核心修复2：全局变量存储克隆体，确保清理时能稳定引用
+        let activeCardClone = null;
+        let moveCloneHandler = null; // 存储mousemove监听函数，便于移除
+        
+        const SUITS = [
+          { key: "S1", label: "I", color: "black" },
+          { key: "H1", label: "II", color: "red" },
+          { key: "D1", label: "III", color: "red" },
+          { key: "C1", label: "IV", color: "black" },
+          { key: "S2", label: "V", color: "black" },
+          { key: "H2", label: "VI", color: "red" },
+          { key: "D2", label: "VII", color: "red" },
+          { key: "C2", label: "VIII", color: "black" },
+        ];
+        const RANKS = [1,2,3,4,5,6,7,8,9,10,11,12,13];
+
+        function rankToLabel(r){
+          return r===1?"A":r===11?"J":r===12?"Q":r===13?"K":String(r);
+        }
+
+        let _idCounter = 1;
+        const nextId = () => _idCounter++;
+
+        function createDoubleDeck(){
+          const deck = [];
+          for(const suit of SUITS){
+            for(const r of RANKS){
+              deck.push({ id: nextId(), suit: suit.key, rank: r, faceUp: false });
+            }
+          }
+          return deck;
+        }
+
+        function shuffle(array){
+          const a = array.slice();
+          for(let i=a.length-1;i>0;i--){
+            const j = Math.floor(Math.random()*(i+1));
+            [a[i],a[j]]=[a[j],a[i]];
+          }
+          return a;
+        }
+
+        function deepCloneState(state){
+          return JSON.parse(JSON.stringify(state));
+        }
+
+        function initialDeal(){
+          const deck = shuffle(createDoubleDeck());
+          const columns = Array.from({length:10},()=>[]);
+          for(let col=0;col<10;col++){
+            const count = col<4?6:5;
+            for(let i=0;i<count;i++){
+              const card = deck.shift();
+              columns[col].push(card);
+            }
+          }
+          for(const col of columns){
+            if(col.length>0) col[col.length-1].faceUp=true;
+          }
+          return { columns, stock: deck, foundations: Array(8).fill(0), score:0, moves:0 };
+        }
+
+        function getSuitMeta(key){
+          return SUITS.find(s=>s.key===key);
+        }
+
+        function extractMovableRunFromIndex(column, startIdx){
+          const run = column.slice(startIdx);
+          if(run.length === 0 || !run.every(c => c.faceUp)) return null;
+          
+          // 检查是否所有牌都是同一花色
+          const firstSuit = run[0].suit;
+          if(!run.every(c => c.suit === firstSuit)) return null;
+          
+          for(let i=0; i<run.length-1; i++){
+            if(run[i].rank !== run[i+1].rank + 1) return null;
+          }
+          return run;
+        }
+
+        function canPlaceOn(targetCard, movingTop){
+          return targetCard.rank === movingTop.rank + 1;
+        }
+
+        function tryRemoveCompleteRun(column){
+          if(column.length < 13) return { removed: false, column };
+          const tail = column.slice(-13);
+          const suit = tail[0].suit;
+          let isValidRun = tail.every((card, index) => 
+            card.suit === suit && card.rank === (13 - index)
+          );
+          if(!isValidRun) return { removed: false, column };
+          return { removed: true, column: column.slice(0, column.length - 13), suit };
+        }
+
+        // 核心修复3：独立的克隆体清理函数，确保所有场景下都能清除
+        function clearCardClone() {
+          if (activeCardClone && document.body.contains(activeCardClone)) {
+            document.body.removeChild(activeCardClone);
+          }
+          activeCardClone = null;
+          // 移除所有相关事件监听
+          if (moveCloneHandler) {
+            document.removeEventListener("mousemove", moveCloneHandler);
+            moveCloneHandler = null;
+          }
+          document.removeEventListener("dragend", clearCardClone);
+          document.removeEventListener("mouseup", clearCardClone);
+          document.removeEventListener("visibilitychange", clearCardClone);
+        }
+
+        function EightSuitSpider(){
+          const [state,setState]=useState(()=>initialDeal());
+          const [undoStack,setUndoStack]=useState([]);
+          const [dragOverColumn, setDragOverColumn] = useState(null);
+          const [showHelp, setShowHelp] = useState(false); // 新增：控制帮助显示状态
+          const [hintCard, setHintCard] = useState(null); // 新增：控制提示显示状态
+          const [hintTarget, setHintTarget] = useState(null); // 新增：控制目标位置提示状态
+          const [lastHint, setLastHint] = useState(null); // 新增：跟踪上次提示的移动
+          const [dealHint, setDealHint] = useState(false); // 新增：控制发牌提示状态
+
+          const remainingDeals=Math.floor(state.stock.length/10);
+          const completedRuns=state.foundations.filter(count => count > 0).length;
+          const hasWon=completedRuns>=8;
+
+          const pushUndo=()=>setUndoStack(s=>[deepCloneState(state),...s].slice(0,50));
+
+          function performMove(fromCol,startIdx,toCol){
+            // 执行移动前先清理克隆体（防止移动后残留）
+            clearCardClone();
+            
+            const columns=state.columns.map(c=>c.slice());
+            const source=columns[fromCol];
+            const target=columns[toCol];
+            const moving=extractMovableRunFromIndex(source,startIdx);
+            if(!moving) return false;
+            if(target.length>0 && !canPlaceOn(target[target.length-1],moving[0])) return false;
+
+            pushUndo();
+            columns[fromCol]=source.slice(0,startIdx);
+            columns[toCol]=target.concat(moving);
+            // 源列最后一张翻面（确保移动后源列可见性）
+            if(columns[fromCol].length>0) columns[fromCol][columns[fromCol].length-1].faceUp=true;
+
+            let newFoundations = [...state.foundations];
+            let res = tryRemoveCompleteRun(columns[toCol]);
+            while(res.removed){
+              columns[toCol] = res.column;
+              const suitIndex = SUITS.findIndex(s => s.key === res.suit);
+              if(suitIndex >= 0) {
+                newFoundations[suitIndex] = (newFoundations[suitIndex] || 0) + 1;
+              }
+              res = tryRemoveCompleteRun(columns[toCol]);
+            }
+
+            // 清除提示状态
+            setHintCard(null);
+            setHintTarget(null);
+            
+            setState({...state, columns, foundations: newFoundations, moves: state.moves+1});
+            setDragOverColumn(null); // 重置拖拽状态
+            return true;
+          }
+
+          function deal(){
+            if(remainingDeals<=0 || state.columns.some(c=>c.length===0)) return;
+            pushUndo();
+            const columns=state.columns.map(c=>c.slice());
+            const stock=state.stock.slice();
+            for(let i=0;i<10;i++){
+              const card=stock.shift();
+              if (card) {
+                card.faceUp=true;
+                columns[i].push(card);
+              }
+            }
+
+            let newFoundations = [...state.foundations];
+            for(let i = 0; i < 10; i++) {
+              let res = tryRemoveCompleteRun(columns[i]);
+              while(res.removed){
+                columns[i] = res.column;
+                const suitIndex = SUITS.findIndex(s => s.key === res.suit);
+                if(suitIndex >= 0) {
+                  newFoundations[suitIndex] = (newFoundations[suitIndex] || 0) + 1;
+                }
+                res = tryRemoveCompleteRun(columns[i]);
+              }
+            }
+
+            setState({...state,columns,stock,moves:state.moves+1, foundations: newFoundations});
+          }
+
+          // 提示功能：查找可移动的牌并高亮显示
+          function hint() {
+            // 清除之前的提示
+            setHintCard(null);
+            setHintTarget(null);
+            setDealHint(false);
+            
+            // 遍历所有列，查找可移动的牌
+            let possibleMoves = [];
+            
+            for (let colIdx = 0; colIdx < state.columns.length; colIdx++) {
+              const column = state.columns[colIdx];
+              // 从下往上查找可移动的牌
+              for (let cardIdx = column.length - 1; cardIdx >= 0; cardIdx--) {
+                // 检查这张牌是否可以移动
+                const isMovable = extractMovableRunFromIndex(state.columns[colIdx], cardIdx);
+                if (isMovable && isMovable.length > 0) {
+                  // 检查是否为同花色序列
+                  const isSameSuit = (() => {
+                    const run = state.columns[colIdx].slice(cardIdx);
+                    if(run.length < 2) return false;
+                    const firstSuit = run[0].suit;
+                    return run.every(c => c.suit === firstSuit);
+                  })();
+                  
+                  // 检查移动是否会拆散同花色序列
+                  const wouldBreakSequence = (() => {
+                    // 如果移动的不是同花色序列，则不会拆散
+                    if (!isSameSuit) return false;
+                    
+                    // 检查移动后是否还会剩下同花色序列
+                    const remaining = state.columns[colIdx].slice(0, cardIdx);
+                    if (remaining.length < 2) return false;
+                    
+                    // 检查剩余部分是否为同花色序列
+                    const lastCard = remaining[remaining.length - 1];
+                    const secondLastCard = remaining[remaining.length - 2];
+                    return lastCard.suit === secondLastCard.suit;
+                  })();
+                  
+                  // 查找可以放置的目标列
+                  for (let targetColIdx = 0; targetColIdx < state.columns.length; targetColIdx++) {
+                    if (targetColIdx === colIdx) continue; // 跳过同一列
+                    const targetColumn = state.columns[targetColIdx];
+                    // 检查是否可以放置
+                    if (targetColumn.length === 0 || canPlaceOn(targetColumn[targetColumn.length-1], isMovable[0])) {
+                      // 检查目标列是否与移动序列起点花色相同
+                      const targetSameSuit = targetColumn.length > 0 && targetColumn[targetColumn.length-1].suit === isMovable[0].suit;
+                      
+                      possibleMoves.push({
+                        sourceCol: colIdx,
+                        sourceCard: cardIdx,
+                        targetCol: targetColIdx,
+                        isSameSuit: isSameSuit,
+                        targetSameSuit: targetSameSuit,
+                        wouldBreakSequence: wouldBreakSequence,
+                        moveKey: `${colIdx}-${cardIdx}-${targetColIdx}` // 用于识别重复移动
+                      });
+                    }
+                  }
+                }
+              }
+            }
+            
+            // 如果没有可移动的牌，提示用户发牌
+            if (possibleMoves.length === 0) {
+              setDealHint(true);
+              return;
+            }
+            
+            // 按优先级排序：
+            // 1. 优先连接同花色（目标列与移动序列花色相同）
+            // 2. 优先同花色序列
+            // 3. 避免拆散同花色序列
+            // 4. 按列顺序
+            possibleMoves.sort((a, b) => {
+              // 优先连接同花色
+              if (a.targetSameSuit && !b.targetSameSuit) return -1;
+              if (!a.targetSameSuit && b.targetSameSuit) return 1;
+              
+              // 优先同花色序列
+              if (a.isSameSuit && !b.isSameSuit) return -1;
+              if (!a.isSameSuit && b.isSameSuit) return 1;
+              
+              // 避免拆散同花色序列
+              if (!a.wouldBreakSequence && b.wouldBreakSequence) return -1;
+              if (a.wouldBreakSequence && !b.wouldBreakSequence) return 1;
+              
+              // 然后按源列和目标列排序
+              if (a.sourceCol !== b.sourceCol) return a.sourceCol - b.sourceCol;
+              return a.targetCol - b.targetCol;
+            });
+            
+            // 过滤掉与上次提示相同的移动
+            let filteredMoves = possibleMoves;
+            if (lastHint) {
+              filteredMoves = possibleMoves.filter(move => 
+                move.moveKey !== lastHint.moveKey
+              );
+            }
+            
+            // 如果过滤后没有移动，尝试找到不同的移动（避免重复建议同一张牌）
+            if (filteredMoves.length === 0 && lastHint) {
+              // 查找移动不同牌的移动
+              filteredMoves = possibleMoves.filter(move => 
+                move.sourceCol !== lastHint.sourceCol || 
+                move.sourceCard !== lastHint.sourceCard
+              );
+              
+              // 如果还是没有，就使用所有可能的移动
+              if (filteredMoves.length === 0) {
+                filteredMoves = possibleMoves;
+              }
+            }
+            
+            // 选择第一个移动作为提示
+            if (filteredMoves.length > 0) {
+              const move = filteredMoves[0];
+              setHintCard({colIdx: move.sourceCol, cardIdx: move.sourceCard});
+              setHintTarget({colIdx: move.targetCol});
+              setLastHint(move);
+            } else {
+              // 如果没找到可移动的牌，提示用户发牌或没有可行移动
+              setDealHint(true);
+            }
+          }
+
+          function newGame(){
+            clearCardClone(); // 新游戏前清理克隆体
+            setUndoStack([]);
+            _idCounter=1;
+            setState(initialDeal());
+            setDragOverColumn(null);
+            currentDragData = null;
+          }
+
+          function undo(){
+            if(undoStack.length===0) return;
+            clearCardClone(); // 撤销前清理克隆体
+            const [prev,...rest]=undoStack;
+            setUndoStack(rest);
+            setState(prev);
+            currentDragData = null;
+          }
+
+          function CardView({card, colIdx, cardIdx, columns}){
+            const suitMeta=getSuitMeta(card.suit);
+            if(!card.faceUp){
+              return <div className="card card-back" draggable={false} />;
+            }
+
+            const isMovableStart = !!extractMovableRunFromIndex(columns[colIdx], cardIdx);
+            
+            // 检查是否同一花色序列
+            const isSameSuitRun = () => {
+              const run = columns[colIdx].slice(cardIdx);
+              if(run.length < 2) return false;
+              const firstSuit = run[0].suit;
+              return run.every(c => c.suit === firstSuit);
+            };
+
+            const handleDragStart = (e) => {
+              if(!isMovableStart) return;
+              // 先清理旧的克隆体（防止多次拖拽残留）
+              clearCardClone();
+
+              currentDragData = { fromCol: colIdx, startIdx: cardIdx };
+              e.dataTransfer.setData("fromCol", String(colIdx));
+              e.dataTransfer.setData("startIdx", String(cardIdx));
+              e.dataTransfer.dropEffect = "move";
+              e.target.style.opacity = "0.7";
+              e.target.style.transform = "scale(1.05)";
+
+              // 创建新克隆体
+              activeCardClone = e.target.cloneNode(true);
+              activeCardClone.style.position = "fixed";
+              activeCardClone.style.zIndex = "1000";
+              activeCardClone.style.pointerEvents = "none";
+              activeCardClone.style.width = window.innerWidth <= 768 ? "70px" : "80px";
+              activeCardClone.style.height = window.innerWidth <= 768 ? "98px" : "112px";
+              document.body.appendChild(activeCardClone);
+
+              // 克隆体跟随鼠标（用全局变量存储handler，便于移除）
+              moveCloneHandler = (e) => {
+                if (!activeCardClone) return;
+                const offsetX = parseInt(activeCardClone.style.width) / 2;
+                const offsetY = parseInt(activeCardClone.style.height) / 2;
+                activeCardClone.style.left = `${e.clientX - offsetX}px`;
+                activeCardClone.style.top = `${e.clientY - offsetY}px`;
+              };
+              document.addEventListener("mousemove", moveCloneHandler);
+
+              // 绑定所有可能终止拖拽的事件，确保克隆体被清理
+              document.addEventListener("dragend", clearCardClone);
+              document.addEventListener("mouseup", clearCardClone); // 点击页面任意处终止
+              document.addEventListener("visibilitychange", clearCardClone); // 页面隐藏时
+            };
+
+            // 拖拽结束恢复原卡片样式
+            const handleDragEnd = (e) => {
+              e.target.style.opacity = "1";
+              e.target.style.transform = "scale(1)";
+            };
+
+            return (
+              <div
+                draggable={isMovableStart}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                style={{ cursor: isMovableStart ? "grab" : "default" }}
+                className={`card card-front 
+                  ${suitMeta?.color==='red'?'card-red':'card-black'} 
+                  ${isMovableStart ? 'is-movable' : ''}
+                  ${isSameSuitRun() ? 'same-suit-run' : ''}
+                  ${hintCard && hintCard.colIdx === colIdx && hintCard.cardIdx === cardIdx ? 'hint-card' : ''}`}
+              >
+                <div className="card-info">
+                  <span>{rankToLabel(card.rank)}</span>
+                  <span>{suitMeta?.label}</span>
+                </div>
+                <div className="suit-indicator" style={{color: suitMeta?.color==='red'?'#e74c3c':'#000'}}>
+                  {suitMeta?.label}
+                </div>
+              </div>
+            );
+          }
+
+          function ColumnView({col, colIdx, columns}){
+            const canReceiveDrag = () => {
+              if(!currentDragData) return false;
+              const { fromCol, startIdx } = currentDragData;
+              const sourceCol = columns[fromCol];
+              const movingRun = extractMovableRunFromIndex(sourceCol, startIdx);
+              return col.length === 0 || (movingRun && canPlaceOn(col[col.length-1], movingRun[0]));
+            };
+
+            return (
+              <div
+                className={`column 
+                  ${dragOverColumn === colIdx ? 
+                    (canReceiveDrag() ? 'drag-over' : 'drag-not-allowed') : ''
+                  }
+                  ${hintTarget && hintTarget.colIdx === colIdx ? 'hint-target' : ''}`}
+                onDragOver={e=>{
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  setDragOverColumn(colIdx);
+                }}
+                onDragLeave={() => {
+                  if(dragOverColumn === colIdx) setDragOverColumn(null);
+                }}
+                onDrop={e=>{
+                  e.preventDefault();
+                  const fromCol=Number(e.dataTransfer.getData("fromCol"));
+                  const startIdx=Number(e.dataTransfer.getData("startIdx"));
+                  performMove(fromCol, startIdx, colIdx);
+                }}
+              >
+                <div className="column-drop-target"/>
+                {/* 渲染卡片：用style传递top值，确保相对于列容器垂直排列 */}
+                {col.map((card, idx) => (
+                  <div 
+                    key={card.id} 
+                    className="card-container" 
+                    style={{ 
+                      top: `${idx * 20}px`, // 减小卡片间距，从30px改为20px
+                      // 移动端适配：减小偏移量，防止列高度溢出
+                      '--card-index': idx // 配合CSS变量使用（可选）
+                    }}
+                  >
+                    <CardView 
+                      card={card} 
+                      colIdx={colIdx} 
+                      cardIdx={idx} 
+                      columns={columns} 
+                      hintCard={hintCard}
+                    />
+                  </div>
+                ))}
+              </div>
+            );
+          }
+
+          function FoundationView({foundation, suitIndex}){
+            const suitMeta = SUITS[suitIndex];
+            const completed = foundation > 0;
+            return (
+              <div className="foundation">
+                {completed ? (
+                  <div className="card card-front">
+                    <div className="card-rank">K-A</div>
+                    <div className="card-suit">{suitMeta.label}</div>
+                    <div className="completed-count">{foundation}</div>
+                  </div>
+                ) : (
+                  <div className="foundation-placeholder">
+                    {suitMeta.label}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // 帮助对话框组件
+          function HelpDialog() {
+            return (
+              <div className={`help-modal ${showHelp ? 'active' : ''}`} onClick={() => setShowHelp(false)}>
+                <div className="help-content" onClick={(e) => e.stopPropagation()}>
+                  <button className="help-close" onClick={() => setShowHelp(false)}>×</button>
+                  <h2 className="help-title">八花色蜘蛛纸牌游戏规则</h2>
+                  
+                  <div className="help-section">
+                    <h3>游戏目标</h3>
+                    <p>将所有牌从K到A按顺序排列，并移除8组完整的花色序列。</p>
+                  </div>
+                  
+                  <div className="help-section">
+                    <h3>游戏规则</h3>
+                    <ul>
+                      <li>使用两副牌，共8组花色，每组花色13张牌（A到K）</li>
+                      <li>初始发牌：10列，前4列每列6张牌，后6列每列5张牌。每列最下面一张牌正面朝上</li>
+                      <li>移动规则：可以将一张或一组同花色的连续递减序列（从K到A）移动到另一列。只能将牌放在空列或比它大1点的牌上（例如：只能将5放在6下面）</li>
+                      <li>发牌：当无法移动时，可以点击发牌按钮，发牌会在每一列上再发一张牌（共10张）。发牌次数有限，发牌堆中的牌发完即止</li>
+                      <li>完成一组序列：当一组同花色的序列从K到A连续排列时，这组牌会被自动移除</li>
+                      <li>游戏胜利：移除8组序列后获胜</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="help-section">
+                    <h3>操作说明</h3>
+                    <ul>
+                      <li><strong>拖放卡片</strong>：点击并拖动可移动的牌或序列到目标列</li>
+                      <li><strong>发牌</strong>：点击"发牌"按钮从牌堆中发新牌</li>
+                      <li><strong>撤销</strong>：点击"撤销"按钮撤销上一步操作</li>
+                      <li><strong>新游戏</strong>：点击"新游戏"按钮重新开始游戏</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="help-section">
+                    <h3>提示与策略</h3>
+                    <ul>
+                      <li>尽量保持列中有多个牌面的选择，避免将列清空</li>
+                      <li>优先移动长序列，这样可以露出更多隐藏的牌</li>
+                      <li>注意规划发牌时机，尽量在无法移动时才发牌</li>
+                      <li>同花色序列有金色边框提示，更容易识别可移动的序列</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="game-container">
+              <header className="game-header">
+                <h1>八花色蜘蛛纸牌</h1>
+                <div className="game-controls">
+                  <button onClick={newGame}>新游戏</button>
+                  <button onClick={undo} disabled={undoStack.length===0}>撤销</button>
+                  <button 
+                    onClick={deal} 
+                    disabled={remainingDeals<=0||state.columns.some(c=>c.length===0)}
+                    className={dealHint ? 'deal-hint' : ''}
+                  >
+                    发牌 ({remainingDeals})
+                  </button>
+                  <button onClick={hint}>提示</button>
+                  <button onClick={() => setShowHelp(true)}>帮助</button>
+                  <div className="game-stats">
+                    <span>已完成: {completedRuns}/8</span>
+                    <span>移动: {state.moves}</span>
+                  </div>
+                </div>
+              </header>
+
+              <div className="foundations">
+                {state.foundations.map((foundation, index) => (
+                  <FoundationView key={index} foundation={foundation} suitIndex={index} />
+                ))}
+              </div>
+
+              <div className="game-board">
+                <div className="columns-container">
+                  {state.columns.map((col, idx) => (
+                    <ColumnView 
+                      key={idx} 
+                      col={col} 
+                      colIdx={idx} 
+                      columns={state.columns} 
+                      hintTarget={hintTarget}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {hasWon && <div className="win-message">恭喜你赢了！</div>}
+              
+              {/* 帮助对话框 */}
+              <HelpDialog />
+            </div>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<EightSuitSpider />);
+    </script>
+</body>
+</html>
