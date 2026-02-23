@@ -4,7 +4,7 @@
 > 童年回忆主题的小项目集 — 用代码记录那些回不去的时光。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub repo size](https://img.shields.io/github/repo-size/yourname/OS2AWorldDictionary)](https://github.com/yourname/OS2AWorldDictionary)
+[![GitHub repo size](https://img.shields.io/github/repo-size/yourname/OS2AWorldDictionary)](https://github.com/Betaxia/OS2AWorldDictionary)
 
 ---
 
